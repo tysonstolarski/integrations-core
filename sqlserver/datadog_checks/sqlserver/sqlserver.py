@@ -84,7 +84,7 @@ from datadog_checks.sqlserver.utils import (
     is_azure_sql_database,
     set_default_driver_conf,
 )
-
+import pdb
 try:
     import adodbapi
 except ImportError:
@@ -125,7 +125,7 @@ class SQLServer(AgentCheck):
         self._sql_counter_types = {}
         self.proc_type_mapping = {"gauge": self.gauge, "rate": self.rate, "histogram": self.histogram}
 
-        self._schemas = Schemas(self)
+        self._schemas = Schemas(self, self._config.schemas_collection_interval)
 
         # DBM
         self.statement_metrics = SqlserverStatementMetrics(self, self._config)
@@ -159,6 +159,7 @@ class SQLServer(AgentCheck):
         self.sqlserver_incr_fraction_metric_previous_values = {}
 
         self._database_metrics = None
+        self._last_schemas_collect_time = None
 
     def cancel(self):
         self.statement_metrics.cancel()
@@ -747,6 +748,7 @@ class SQLServer(AgentCheck):
                         if stop:
                             break;                  
                     except Exception as e:
+                        pdb.set_trace()
                         print("An exception occurred during do_for_databases in db - {}: {}".format(db, e))
                 # Switch DB back to MASTER
                 if not is_azure_sql_database(engine_edition):
@@ -781,19 +783,19 @@ class SQLServer(AgentCheck):
             if self._config.autodiscovery and self._config.autodiscovery_db_service_check:
                 self._check_database_conns()
             self._send_database_instance_metadata()
-
-            #TODO limit this check by some minutes ...
-            start_time = time.time()
-            self._schemas.collect_schemas_data() 
-            elapsed_time = time.time() - start_time
-            print("Elapsed time:", elapsed_time, "seconds")
-            #if self._config.dbm_enabled:
-                
-                
-                #self.statement_metrics.run_job_loop(self.tags)
-                #self.procedure_metrics.run_job_loop(self.tags)
-                #self.activity.run_job_loop(self.tags)
-                #self.sql_metadata.run_job_loop(self.tags)
+#"{},{}".format(
+#                    self.static_info_cache.get(STATIC_INFO_VERSION, ""),
+#                    self.static_info_cache.get(STATIC_INFO_ENGINE_EDITION, ""),
+#                )
+#
+            if self._last_schemas_collect_time is None or time.time() - self._last_schemas_collect_time > self._config.schemas_collection_interval:
+                self._schemas.collect_schemas_data()
+                self._last_schemas_collect_time = time.time() 
+            if self._config.dbm_enabled:                
+                self.statement_metrics.run_job_loop(self.tags)
+                self.procedure_metrics.run_job_loop(self.tags)
+                self.activity.run_job_loop(self.tags)
+                self.sql_metadata.run_job_loop(self.tags)
         else:
             self.log.debug("Skipping check")
 
