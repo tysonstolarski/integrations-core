@@ -785,11 +785,6 @@ class SQLServer(AgentCheck):
             if self._config.autodiscovery and self._config.autodiscovery_db_service_check:
                 self._check_database_conns()
             self._send_database_instance_metadata()
-            # "{},{}".format(
-            #                    self.static_info_cache.get(STATIC_INFO_VERSION, ""),
-            #                    self.static_info_cache.get(STATIC_INFO_ENGINE_EDITION, ""),
-            #                )
-            #
             if (
                 self._last_schemas_collect_time is None
                 or time.time() - self._last_schemas_collect_time > self._config.schemas_collection_interval
