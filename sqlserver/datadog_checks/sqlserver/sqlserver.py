@@ -161,7 +161,7 @@ class SQLServer(AgentCheck):
         self._database_metrics = None
 
         self._last_schemas_collect_time = None
-        self._schemas = Schemas(self, self._config.schemas_collection_interval)
+        self._schemas = Schemas(self, self._config)
 
     def cancel(self):
         self.statement_metrics.cancel()
@@ -785,17 +785,12 @@ class SQLServer(AgentCheck):
             if self._config.autodiscovery and self._config.autodiscovery_db_service_check:
                 self._check_database_conns()
             self._send_database_instance_metadata()
-            if (
-                self._last_schemas_collect_time is None
-                or time.time() - self._last_schemas_collect_time > self._config.schemas_collection_interval
-            ):
-                self._schemas.collect_schemas_data()
-                self._last_schemas_collect_time = time.time()
             if self._config.dbm_enabled:
                 self.statement_metrics.run_job_loop(self.tags)
                 self.procedure_metrics.run_job_loop(self.tags)
                 self.activity.run_job_loop(self.tags)
                 self.sql_metadata.run_job_loop(self.tags)
+                self._schemas.collect_schemas_data()
         else:
             self.log.debug("Skipping check")
 
