@@ -298,7 +298,7 @@ class DBMAsyncJob(object):
         self._last_check_run = time.time()
         if self._run_sync or is_affirmative(os.environ.get('DBM_THREADED_JOB_RUN_SYNC', "false")):
             self._log.debug("Running threaded job synchronously. job=%s", self._job_name)
-            self._run_job_rate_limited()
+            self._run_sync_job_rate_limited()
         elif self._job_loop_future is None or not self._job_loop_future.running():
             self._job_loop_future = DBMAsyncJob.executor.submit(self._job_loop)
         else:
@@ -362,11 +362,26 @@ class DBMAsyncJob(object):
     def _set_rate_limit(self, rate_limit):
         if self._rate_limiter.rate_limit_s != rate_limit:
             self._rate_limiter = ConstantRateLimiter(rate_limit)
+    
+    def _run_sync_job_rate_limited(self):
+        if self._rate_limiter.shell_execute():
+            try:
+                self._run_job_traced()
+            except:
+                raise
+            finally:
+                self._rate_limiter.update_last_time()
 
     def _run_job_rate_limited(self):
-        self._run_job_traced()
-        if not self._cancel_event.isSet():
-            self._rate_limiter.sleep()
+        try:
+            self._run_job_traced()
+        except:
+            raise
+        finally:
+            if not self._cancel_event.isSet():
+                self._rate_limiter.update_last_time_and_sleep()
+            else:
+                self._rate_limiter.update_last_time()
 
     @_traced_dbm_async_job_method
     def _run_job_traced(self):
